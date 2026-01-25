@@ -8,7 +8,11 @@ const handler = NextAuth({
     LinkedInProvider({
       clientId: process.env.LINKEDIN_CLIENT_ID!,
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
-      authorization: { params: { scope: "r_liteprofile r_emailaddress" } },
+      authorization: {
+        params: {
+          scope: "openid profile email",
+        },
+      },
     }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -16,25 +20,13 @@ const handler = NextAuth({
     }),
   ],
 
+  pages: {
+    signIn: "/login", // optional
+  },
+
   callbacks: {
-    async session({ session, token }) {
-      if (session.user) {
-        // TypeScript-safe fallback for string
-        session.user.id = token.sub ?? "";
-        session.user.provider = token?.provider ?? "";
-      }
-      return session;
-    },
-
-    async jwt({ token, account }) {
-      if (account?.provider) {
-        token.provider = account.provider;
-      }
-      return token;
-    },
-
-    async redirect({ url, baseUrl }) {
-      return baseUrl; // always redirect to home/dashboard
+    async redirect({ baseUrl }) {
+      return `${baseUrl}/dashboard`;
     },
   },
 });
