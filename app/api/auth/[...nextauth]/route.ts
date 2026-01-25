@@ -16,8 +16,9 @@ const handler = NextAuth({
     }),
   ],
 
+  secret: process.env.NEXTAUTH_SECRET, // ✅ important
+
   callbacks: {
-    // Add user id and provider info to the session
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? "";
@@ -26,7 +27,6 @@ const handler = NextAuth({
       return session;
     },
 
-    // Keep provider info in the JWT
     async jwt({ token, account }) {
       if (account?.provider) {
         token.provider = account.provider;
@@ -34,16 +34,11 @@ const handler = NextAuth({
       return token;
     },
 
-    // Redirect after login
     async redirect({ url, baseUrl }) {
-      // Always redirect to dashboard/settings after login
-      const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings`;
-      return redirectTo;
+      // ✅ always redirect to your settings page after login
+      return `${baseUrl}/dashboard/settings?linkedin=connected`;
     },
   },
-
-  // Optional: You can add session strategy if needed
-  // session: { strategy: "jwt" },
 });
 
 export { handler as GET, handler as POST };
