@@ -1,7 +1,9 @@
 import NextAuth from "next-auth";
 import LinkedInProvider from "next-auth/providers/linkedin";
+import GoogleProvider from "next-auth/providers/google";
 
 const handler = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET, // REQUIRED
   providers: [
     LinkedInProvider({
       clientId: process.env.LINKEDIN_CLIENT_ID!,
@@ -12,30 +14,21 @@ const handler = NextAuth({
         },
       },
     }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
   ],
 
-  callbacks: {
-    async jwt({ token, account }) {
-      if (account?.provider) {
-        token.provider = account.provider;
-      }
-      return token;
-    },
-
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.sub ?? "";
-        session.user.provider = token.provider ?? "linkedin";
-      }
-      return session;
-    },
-
-    async redirect({ baseUrl }) {
-      return baseUrl;
-    },
+  pages: {
+    signIn: "/dashboard/settings",
   },
 
-  secret: process.env.NEXTAUTH_SECRET,
+  callbacks: {
+    async redirect() {
+      return "/dashboard/settings?linkedin=connected";
+    },
+  },
 });
 
 export { handler as GET, handler as POST };

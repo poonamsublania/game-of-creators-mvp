@@ -1,16 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get('code');
+export async function GET(req: NextRequest) {
+  const code = new URL(req.url).searchParams.get("code");
 
   if (!code) {
     return NextResponse.redirect(
-      new URL('/dashboard/settings?linkedin=error', request.url)
+      new URL("/dashboard/settings?linkedin=error", req.url)
     );
   }
 
+  // Later: exchange code → access token
+  // For now: redirect success
+
   return NextResponse.redirect(
-    new URL('/dashboard/settings?linkedin=connected', request.url)
+    new URL("/dashboard/settings?linkedin=connected", req.url)
   );
 }
