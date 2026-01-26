@@ -16,11 +16,10 @@ const handler = NextAuth({
     }),
   ],
 
-  secret: process.env.NEXTAUTH_SECRET, // ✅ important
-
   callbacks: {
     async session({ session, token }) {
       if (session.user) {
+        // TypeScript-safe fallback for string
         session.user.id = token.sub ?? "";
         session.user.provider = token?.provider ?? "";
       }
@@ -35,8 +34,7 @@ const handler = NextAuth({
     },
 
     async redirect({ url, baseUrl }) {
-      // ✅ always redirect to your settings page after login
-      return `${baseUrl}/dashboard/settings?linkedin=connected`;
+      return baseUrl; // always redirect to home/dashboard
     },
   },
 });
