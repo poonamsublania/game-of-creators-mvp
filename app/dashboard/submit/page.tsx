@@ -1,186 +1,128 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react'
 
 type Submission = {
-  id: string;
-  post_url?: string;
-  video_url?: string;
-  submitted_at: string;
-};
+  id: string
+  post_url: string
+  submitted_at: string
+}
 
-const CAMPAIGN_ID = '4f111ee6-23cf-489e-aed0-008cad241517';
+const CAMPAIGN_ID = '4f111ee6-23cf-489e-aed0-008cad241517'
 
 export default function SubmitPage() {
-  const [url, setUrl] = useState('');
-  const [videos, setVideos] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [postUrl, setPostUrl] = useState('')
+  const [submissions, setSubmissions] = useState<Submission[]>([])
+  const [loading, setLoading] = useState(false)
 
-  /* ================= LOAD SUBMISSIONS ================= */
+  /* ================= FETCH SUBMISSIONS ================= */
   useEffect(() => {
-    fetch('/api/submissions')
-      .then((r) => r.json())
-      .then((data) => Array.isArray(data) && setSubmissions(data))
-      .catch(() => {});
-  }, []);
+    const loadSubmissions = async () => {
+      const res = await fetch('/api/submissions')
+      const data = await res.json()
 
-  /* ================= VIDEO SELECT ================= */
-  const onVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setVideos((prev) => [...prev, ...files]);
-    setPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
-  };
+      if (Array.isArray(data)) {
+        setSubmissions(data)
+      }
+    }
 
-  const removeVideo = (i: number) => {
-    setVideos((v) => v.filter((_, idx) => idx !== i));
-    setPreviews((p) => p.filter((_, idx) => idx !== i));
-  };
+    loadSubmissions()
+  }, [])
 
   /* ================= SUBMIT ================= */
-  const submit = async () => {
-    if (!url && videos.length === 0) {
-      setError('Please add a post URL or upload at least one video.');
-      return;
+  const submitContent = async () => {
+    if (!postUrl) {
+      alert('Paste LinkedIn post URL')
+      return
     }
 
-    setLoading(true);
-    setError('');
+    setLoading(true)
 
-    try {
-      /* URL SUBMISSION */
-      if (url) {
-        const res = await fetch('/api/submissions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ campaign_id: CAMPAIGN_ID, post_url: url }),
-        });
+    const res = await fetch('/api/submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        campaign_id: CAMPAIGN_ID,
+        post_url: postUrl,
+      }),
+    })
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'URL submission failed');
+    const data = await res.json()
 
-        setSubmissions((p) => [data.submission, ...p]);
-        setUrl('');
-      }
-
-      /* VIDEO UPLOADS */
-      for (const video of videos) {
-        const fd = new FormData();
-        fd.append('campaign_id', CAMPAIGN_ID);
-        fd.append('video', video);
-
-        const res = await fetch('/api/submissions', { method: 'POST', body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Video upload failed');
-
-        setSubmissions((p) => [data.submission, ...p]);
-      }
-
-      setVideos([]);
-      setPreviews([]);
-    } catch (e: any) {
-      setError(e.message || 'Submission failed');
+    if (!res.ok) {
+      alert(data.error || 'Submission failed')
+      setLoading(false)
+      return
     }
 
-    setLoading(false);
-  };
+    setSubmissions(prev => [data, ...prev])
+    setPostUrl('')
+    setLoading(false)
+  }
 
+  /* ================= RENDER ================= */
   return (
-    <main className="max-w-5xl mx-auto p-6 space-y-6">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-1">Submit Content</h1>
-        <p className="text-gray-500">Submit your post URL or upload videos for this campaign.</p>
+    <main className="max-w-3xl mx-auto p-6 space-y-8">
+      <h1 className="text-3xl font-bold">Submit LinkedIn Content</h1>
+
+      {/* Input */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">
+          Paste your LinkedIn post URL
+        </label>
+        <input
+          type="url"
+          placeholder="https://www.linkedin.com/posts/..."
+          value={postUrl}
+          onChange={e => setPostUrl(e.target.value)}
+          className="w-full border rounded-lg p-3"
+        />
       </div>
 
-      {/* SUBMIT CARD */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow hover:shadow-md transition">
-        {/* URL INPUT */}
-        <label className="text-sm font-semibold text-gray-700">Post URL</label>
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://instagram.com/..."
-          className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      <button
+        onClick={submitContent}
+        disabled={loading}
+        className="bg-blue-600 text-white px-6 py-3 rounded-lg disabled:opacity-50"
+      >
+        {loading ? 'Submitting…' : 'Submit Content'}
+      </button>
 
-        {/* OR */}
-        <div className="text-center text-gray-400 text-sm my-4">OR</div>
+      {/* Submissions */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Your Submissions</h2>
 
-        {/* VIDEO UPLOAD */}
-        <label className="text-sm font-semibold text-gray-700">Upload Videos</label>
-        <input
-          type="file"
-          accept="video/*"
-          multiple
-          onChange={onVideoSelect}
-          className="mt-2"
-        />
-
-        {/* VIDEO PREVIEWS */}
-        {previews.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-            {previews.map((src, i) => (
-              <div key={i} className="relative rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                <video src={src} controls className="w-full h-40 object-cover" />
-                <button
-                  onClick={() => removeVideo(i)}
-                  className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
+        {submissions.length === 0 && (
+          <p className="text-gray-500">No submissions yet.</p>
         )}
 
-        {/* ERROR */}
-        {error && (
-          <div className="mt-4 bg-red-50 text-red-600 text-sm px-4 py-2 rounded">
-            {error}
-          </div>
-        )}
+        <div className="space-y-6">
+          {submissions.map(s => {
+            if (!s.post_url) return null
 
-        {/* SUBMIT BUTTON */}
-        <button
-          onClick={submit}
-          disabled={loading}
-          className="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60 transition"
-        >
-          {loading ? 'Submitting...' : 'Submit Content'}
-        </button>
-      </div>
+            // Extract LinkedIn post ID
+            const match = s.post_url.match(/activity-(\d+)/)
+            const postId = match ? match[1] : null
+            if (!postId) return null
 
-      {/* SUBMISSIONS LIST */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-gray-800">Your Submissions</h3>
-        {submissions.length === 0 && <p className="text-gray-500 text-sm">No submissions yet.</p>}
+            return (
+              <div key={s.id} className="border rounded-lg p-4 bg-white shadow">
+                <iframe
+                  src={`https://www.linkedin.com/embed/feed/update/urn:li:activity:${postId}`}
+                  height="650"
+                  width="100%"
+                  frameBorder="0"
+                  allowFullScreen
+                  title="LinkedIn Post"
+                ></iframe>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {submissions.map((s) => (
-            <div key={s.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition">
-              {/* URL */}
-              {s.post_url && (
-                <a href={s.post_url} target="_blank" className="text-blue-600 underline break-all">
-                  {s.post_url}
-                </a>
-              )}
-
-              {/* VIDEO */}
-              {s.video_url && (
-                <video src={s.video_url} controls className="w-full mt-3 rounded-lg h-48 object-cover" />
-              )}
-
-              {/* TIMESTAMP */}
-              <div className="text-xs text-gray-500 mt-2">
-                Submitted on {new Date(s.submitted_at).toLocaleString()}
+                <p className="text-xs text-gray-500 mt-2">
+                  {new Date(s.submitted_at).toLocaleString()}
+                </p>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
-      </div>
+      </section>
     </main>
-  );
+  )
 }

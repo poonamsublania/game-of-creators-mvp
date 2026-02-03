@@ -1,114 +1,98 @@
-import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+// 🔒 Hardcoded auth user id for assignment
+const AUTH_USER_ID = '35c2f326-f5a8-425c-bfc6-c84b910ec740'
+
+/* =========================
+   GET → FETCH SUBMISSIONS
+========================= */
 export async function GET() {
-  const supabase = createSupabaseServerClient();
+  try {
+    // Get first creator account id
+    const { data: creatorAccounts } = await supabase
+      .from('creator_accounts')
+      .select('id')
+      .eq('creator_id', AUTH_USER_ID)
+      .limit(1)
 
-  const { data, error } = await supabase
-    .from('submissions')
-    .select('*')
-    .order('submitted_at', { ascending: false });
+    if (!creatorAccounts || creatorAccounts.length === 0) {
+      return NextResponse.json([])
+    }
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const creatorId = creatorAccounts[0].id
+
+    const { data } = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('creator_id', creatorId)
+      .order('submitted_at', { ascending: false })
+
+    return NextResponse.json(data || [])
+  } catch (err) {
+    console.error('GET error:', err)
+    return NextResponse.json([], { status: 500 })
   }
-
-  return NextResponse.json(data);
 }
 
-export async function POST(req: Request) {
-  const supabase = createSupabaseServerClient();
-  const contentType = req.headers.get('content-type') || '';
-
+/* =========================
+   POST → SAVE SUBMISSION
+========================= */
+export async function POST(req: NextRequest) {
   try {
-    /* ================= URL SUBMISSION ================= */
-    if (contentType.includes('application/json')) {
-      const body = await req.json();
+    const { campaign_id, post_url } = await req.json()
 
-      if (!body.campaign_id) {
-        return NextResponse.json(
-          { error: 'campaign_id required' },
-          { status: 400 }
-        );
-      }
-
-      const { data, error } = await supabase
-        .from('submissions')
-        .insert({
-          campaign_id: body.campaign_id,
-          post_url: body.post_url || null,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return NextResponse.json({ submission: data });
-    }
-
-    /* ================= VIDEO UPLOAD ================= */
-    const form = await req.formData();
-    const campaign_id = form.get('campaign_id') as string;
-    const video = form.get('video') as File;
-
-    if (!campaign_id || !video) {
+    if (!campaign_id || !post_url) {
       return NextResponse.json(
-        { error: 'campaign_id and video required' },
+        { error: 'Missing campaign_id or post_url' },
         { status: 400 }
-      );
+      )
     }
 
-    const ext = video.name.split('.').pop();
-    const filePath = `${campaign_id}/${crypto.randomUUID()}.${ext}`;
+    // Get creator account id
+    const { data: creatorAccounts } = await supabase
+      .from('creator_accounts')
+      .select('id')
+      .eq('creator_id', AUTH_USER_ID)
+      .limit(1)
 
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from('submissions')
-      .upload(filePath, video, {
-        contentType: video.type,
-      });
+    if (!creatorAccounts || creatorAccounts.length === 0) {
+      return NextResponse.json(
+        { error: 'No creator account found in DB' },
+        { status: 400 }
+      )
+    }
 
-    if (uploadError) throw uploadError;
+    const creatorId = creatorAccounts[0].id
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('submissions')
-      .getPublicUrl(filePath);
-
-    const video_url = urlData.publicUrl;
-
-    // Save submission
     const { data, error } = await supabase
       .from('submissions')
       .insert({
         campaign_id,
-        video_url,
+        creator_id: creatorId,
+        platform: 'linkedin',
+        content_type: 'post',
+        post_url,
       })
       .select()
-      .single();
+      .single()
 
-    if (error) throw error;
+    if (error) {
+      console.error('Insert error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
-    return NextResponse.json({ submission: data });
-  } catch (err: any) {
-    console.error(err);
+    return NextResponse.json(data)
+  } catch (err) {
+    console.error('POST error:', err)
     return NextResponse.json(
-      { error: err.message || 'Server error' },
+      { error: 'Internal server error' },
       { status: 500 }
-    );
+    )
   }
-}
-
-export async function DELETE(req: Request) {
-  const supabase = createSupabaseServerClient();
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return NextResponse.json({ error: 'id required' }, { status: 400 });
-  }
-
-  await supabase.from('submissions').delete().eq('id', id);
-
-  return NextResponse.json({ success: true });
 }
